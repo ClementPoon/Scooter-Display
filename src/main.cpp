@@ -10,8 +10,8 @@ static NimBLEUUID charUUID("23680ff2-e66b-4a4e-a051-422d2665c443");
 
 //Define the two CS pins to toggle between the two screens
 //These can be any two GPIO pins
-#define screen_0_CS  18           
-#define screen_1_CS  5
+#define screen_0_CS  10      
+#define screen_1_CS  15
 //Rotation values, change as required
 //These are for a screen in portrait mode, swap if using landscape
 #define rotation_0 1
@@ -243,10 +243,12 @@ void setup() {
   pinMode (screen_0_CS, OUTPUT);
   pinMode (screen_1_CS, OUTPUT);
   //INIT both screens
-  digitalWrite (screen_0_CS, LOW);                               // we need to 'init' both displays
-  digitalWrite (screen_1_CS, LOW);    
+  toggleScreen(true, false);                               // we need to 'init' both displays
   //Init tft             
   tft.init ();   
+
+  toggleScreen(false, true);                               // we need to 'init' both displays
+  tft.init ();
   //Now both displays are inited, we can select one to work with
   digitalWrite (screen_0_CS, HIGH);                              // set both CS pins HIGH, or 'inactive'
   digitalWrite (screen_1_CS, HIGH);
