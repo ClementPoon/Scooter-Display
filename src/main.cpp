@@ -2,6 +2,7 @@
 #include <TFT_eSPI.h>
 #include <NimBLEDevice.h>
 #include <math.h>
+#include <Scooter.h>
 
 // The remote service we wish to connect to.
 static NimBLEUUID serviceUUID("c32cdd1f-baf2-46bc-87a1-69ab9637bfe0");
@@ -11,7 +12,7 @@ static NimBLEUUID charUUID("23680ff2-e66b-4a4e-a051-422d2665c443");
 //Define the two CS pins to toggle between the two screens
 //These can be any two GPIO pins
 #define screen_0_CS  10      
-#define screen_1_CS  15
+#define screen_1_CS  8
 //Rotation values, change as required
 //These are for a screen in portrait mode, swap if using landscape
 #define rotation_0 1
@@ -20,7 +21,7 @@ static NimBLEUUID charUUID("23680ff2-e66b-4a4e-a051-422d2665c443");
 //Sensor Variables
 int shockSensorBackValue = 0;
 int shockSensorFrontValue = 0;
-int gForceValue = 0;
+int gForceValue = 100;
 float tiltAngleValue = 0.0;
 int compassValue = 0; //From 0-360 degrees
 // Serial input buffering (used by onReceive callback)
@@ -52,6 +53,9 @@ TFT_eSPI tft = TFT_eSPI();       // Invoke custom library
 //Sprites
 TFT_eSprite img = TFT_eSprite(&tft); // Create Sprite object "img" with pointer to "tft" object
 
+//Scooter bitmap images
+
+
 void toggleScreen(bool screen0, bool screen1) {
   if (screen0 && !screen1) {
     digitalWrite (screen_0_CS, LOW);   // select screen 0
@@ -74,23 +78,27 @@ void updateScreen0() {
   //Select screen 0
   toggleScreen(true, false);   
   //Clear screen 
-  img.fillRect(0, 0, 230, 230, TFT_BLACK); // Fill the sprite with black before drawing
+  img.fillRect(0, 0, 240, 240, TFT_BLACK); // Fill the sprite with black before drawing
 
-  const int cx = 115;
-  const int cy = 115;
-  const int borderR = 95;
+  const int cx = 120;
+  const int cy = 120;
+  const int borderR = 90;
   const int charR = 105;
   const int markInnerR = 100;
-  const int markOuterR = 110;
-  const int needleBaseR = 82;
-  const int needleTipR = 91;
+  const int markOuterR = 105;
+  const int needleBaseR = 81;
+  const int needleTipR = 90;
+
+  //Boost angle Vars
+  int greenBoostAngle = 40;
+  int YellowBoostAngle = 60;
+  int redBoostAngle = 80;
 
   // Draw Compass (GPS):
-  img.drawCircle(cx, cy, borderR, TFT_WHITE); // Border circle
-  img.drawChar(cos(radians(-90 - compassValue)) * charR + cx, sin(radians(-90 - compassValue)) * charR + cy, 'N', TFT_ORANGE, TFT_BLACK, 2); // North indicator
-  img.drawChar(cos(radians(-270 - compassValue)) * charR + cx, sin(radians(-270 - compassValue)) * charR + cy, 'S', TFT_ORANGE, TFT_BLACK, 2); // South indicator
-  img.drawChar(cos(radians(0 - compassValue)) * charR + cx, sin(radians(0 - compassValue)) * charR + cy, 'E', TFT_ORANGE, TFT_BLACK, 2); // East indicator
-  img.drawChar(cos(radians(-180 - compassValue)) * charR + cx, sin(radians(-180 - compassValue)) * charR + cy, 'W', TFT_ORANGE, TFT_BLACK, 2); // West indicator
+  img.drawChar(cos(radians(-90 - compassValue)) * charR + cx, sin(radians(-90 - compassValue)) * charR + cy, 'N', TFT_RED, TFT_BLACK, 1.7); // North indicator
+  img.drawChar(cos(radians(-270 - compassValue)) * charR + cx, sin(radians(-270 - compassValue)) * charR + cy, 'S', TFT_ORANGE, TFT_BLACK, 1.7); // South indicator
+  img.drawChar(cos(radians(0 - compassValue)) * charR + cx, sin(radians(0 - compassValue)) * charR + cy, 'E', TFT_ORANGE, TFT_BLACK, 1.7); // East indicator
+  img.drawChar(cos(radians(-180 - compassValue)) * charR + cx, sin(radians(-180 - compassValue)) * charR + cy, 'W', TFT_ORANGE, TFT_BLACK, 1.7); // West indicator
 
   // Draw line markers
   for (int i = 0; i < 360; i += 18) {
@@ -103,15 +111,118 @@ void updateScreen0() {
     }
   }
 
-  // Draw compass needle (rotates with compassValue)
+  //Draw Referencce needle (fixed North position)
   img.fillTriangle(
-    (int)(cos(radians(-90 + 5 - compassValue)) * needleBaseR + cx), (int)(sin(radians(-90 + 5 - compassValue)) * needleBaseR + cy),
-    (int)(cos(radians(-90 - 5 - compassValue)) * needleBaseR + cx), (int)(sin(radians(-90 - 5 - compassValue)) * needleBaseR + cy),
-    (int)(cos(radians(270 - compassValue)) * needleTipR + cx), (int)(sin(radians(270 - compassValue)) * needleTipR + cy),
+    (int)(cos(radians(-90 + 5)) * needleBaseR + cx), (int)(sin(radians(-90 + 5)) * needleBaseR + cy),
+    (int)(cos(radians(-90 - 5)) * needleBaseR + cx), (int)(sin(radians(-90 - 5)) * needleBaseR + cy),
+    (int)(cos(radians(270)) * needleTipR + cx), (int)(sin(radians(270)) * needleTipR + cy),
     TFT_RED
-  ); // North (red)
+  );
 
-  img.pushSprite(5, 5); // Push the sprite to the TFT at coordinates (0,0)
+  // Draw Bottom Boost Indicator
+  img.fillRect(0, 120, 240, 120, TFT_BLACK); // Fill the bottom half with black (placeholder for boost indicator)
+  //Draw an arc using the boost value (placeholder logic)
+  int boostAngle = map(gForceValue, 0, 100, 0, 80); // Map gForceValue (0-100) to angle (0-180)
+  for (int b = 0; b <= 10; b++) {
+    for (int a = 0; a <= boostAngle; a++) {
+      int x = (int)(cos(radians(90 - a)) * (borderR + 20 + b) + cx);
+      int y = (int)(sin(radians(90 - a)) * (borderR + 20 +b) + cy); // Offset down by 60 for bottom half
+      // increase radius as 'a' increases so the arc follows the outside
+      // extraRadius scales from 0..10 pixels (change 10.0f to tune how much it flares out)
+      float extraRadius = (boostAngle > 0) ? ( (float)a / boostAngle ) * 7.0f : 0.0f;
+      float r = borderR + 20 + b + extraRadius;
+      int xi = (int)(cos(radians(90 - a)) * r + cx);
+      int yi = (int)(sin(radians(90 - a)) * r + cy);
+      if (a < greenBoostAngle)
+        img.drawPixel(xi, yi, TFT_WHITE);
+      else if (a < YellowBoostAngle)
+        img.drawPixel(xi, yi, TFT_YELLOW);
+      else if (a < redBoostAngle)
+        img.drawPixel(xi, yi, TFT_RED);
+    }
+    for (int a = 0; a <= boostAngle; a++) {
+      // mirror the arc to the other side by using 90 + a consistently
+      float ang = radians(90 + a);
+      // increase radius as 'a' increases so the arc follows the outside
+      // extraRadius scales from 0..10 pixels (change 10.0f to tune how much it flares out)
+      float extraRadius = (boostAngle > 0) ? ((float)a / boostAngle) * 7.0f : 0.0f;
+      // make the outermost (max a) slightly thicker
+      if (a >= boostAngle - 1) extraRadius += 4.0f;
+      float r = borderR + 20 + b + extraRadius;
+      int xi = (int)(cos(ang) * r + cx);
+      int yi = (int)(sin(ang) * r + cy);
+      if (a < greenBoostAngle)
+      img.drawPixel(xi, yi, TFT_WHITE);
+      else if (a < YellowBoostAngle)
+      img.drawPixel(xi, yi, TFT_YELLOW);
+      else if (a < redBoostAngle)
+      img.drawPixel(xi, yi, TFT_RED);
+    }
+  }
+
+  // Draw a triangle on the scooter wheels and increase red color from green as shock sensors increase
+  // Wheel positions are chosen relative to the scooter bitmap drawn at (80,70) with size 80x110.
+  // Adjust leftWheelX/Y and rightWheelX/Y if your bitmap positions differ.
+  {
+    auto rgbTo565 = [](uint8_t r, uint8_t g, uint8_t b) -> uint16_t {
+      return (uint16_t)(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
+    };
+
+    // Clamp raw analog values to expected range then map to 0..100
+    int backVal = constrain(shockSensorBackValue, 0, 256);
+    int frontVal = constrain(shockSensorFrontValue, 0, 256);
+    int backPct = map(backVal, 0, 256, 0, 100);
+    int frontPct = map(frontVal, 0, 256, 0, 100);
+
+    // Compute RGB color that interpolates from green (0) to red (100)
+    auto interpColor = [&](int pct)->uint16_t {
+      pct = constrain(pct, 0, 100);
+      uint8_t r = map(pct, 0, 100, 0, 255);
+      uint8_t g = map(pct, 0, 100, 255, 0);
+      uint8_t b = 0;
+      return rgbTo565(r, g, b);
+    };
+
+    uint16_t backColor = interpColor(backPct);
+    uint16_t frontColor = interpColor(frontPct);
+
+    // Triangle size scales with shock intensity (base 6..20)
+    auto triangleSize = [&](int pct)->int {
+      return 6 + (pct * 14) / 100;
+    };
+
+    // Wheels are vertically aligned (same X), different Y positions
+    int wheelX = 130;         // common X for both wheels (adjust if needed)
+    int backWheelY = 170;     // Y for back wheel (lower)
+    int frontWheelY = 120;    // Y for front wheel (higher)
+
+    // Back wheel triangle rotated 90 degrees (pointing right)
+    int sBack = triangleSize(backPct);
+    int halfWBack = sBack;            // half-height of the base (vertical half-size)
+    int depthBack = sBack;            // how far the triangle extends horizontally (to the right)
+    img.fillTriangle(
+      wheelX + depthBack, backWheelY,                 // apex (right)
+      wheelX, backWheelY - halfWBack,     // top-left
+      wheelX, backWheelY + halfWBack,     // bottom-left
+      backColor
+    );
+
+    // Front wheel triangle rotated 90 degrees (pointing right)
+    int sFront = triangleSize(frontPct);
+    int halfWFront = sFront;
+    int depthFront = sFront;
+    img.fillTriangle(
+      wheelX + depthFront, frontWheelY,               // apex (right)
+      wheelX, frontWheelY - halfWFront,  // top-left
+      wheelX, frontWheelY + halfWFront,  // bottom-left
+      frontColor
+    );
+  }
+
+
+  //Draw Scooter Bitmap in the center
+  img.drawBitmap(80, 70, scooterBitmap, 80, 110, TFT_WHITE); // Draw scooter bitmap at (80,65)
+  img.pushSprite(0, 0); // Push the sprite to the TFT at coordinates (0,0)
   // Shock Sensors (BACK/FRONT):
   // Analog read from 0 to 4095 (12 bits) from the shock sensors
   // Map to 0 to 100% for display
@@ -269,7 +380,7 @@ void setup() {
   #endif
   // Do not access internal/private members of the library (img._psram_enable).
   // If PSRAM must be enabled, use the library's public API or configure PSRAM globally.
-  bool ok = img.createSprite(230, 230);
+  bool ok = img.createSprite(240, 240);
   Serial.print("createSprite(240,240) returned: "); Serial.println(ok);
   Serial.print("Free heap after create: "); Serial.println(ESP.getFreeHeap());
   if (!ok) {
@@ -277,19 +388,7 @@ void setup() {
   }
   //Initialize BLE Serial
   //reconnectToServer(true);
-  // Register Serial receive callback once (do NOT register inside loop)
-  Serial.onReceive([]() {
-    while (Serial.available()) {
-      int c = Serial.read();
-      if (c == '\n' || c == '\r' || serialIdx >= sizeof(serialBuf) - 1) {
-        serialBuf[serialIdx] = '\0';
-        serialIdx = 0;
-        serialLineReady = true;
-      } else {
-        serialBuf[serialIdx++] = (char)c;
-      }
-    }
-  });
+  
    
  
 }
@@ -301,15 +400,22 @@ void loop() {
   // Optimal tilt angle calc
   // Compass (GPS)
   updateScreen0();
-  // If a full serial line is available, parse it here (safe place for blocking calls)
-  if (serialLineReady) {
-    noInterrupts();
-    char localBuf[32];
-    strncpy(localBuf, serialBuf, sizeof(localBuf));
-    serialLineReady = false;
-    interrupts();
-    int v = atoi(localBuf);
-    compassValue = v;
-    Serial.println(compassValue);
-  }
+
+  compassValue += 1;
+  if (compassValue >= 360) {
+    compassValue = 0;
+}
+gForceValue += 5;
+if (gForceValue > 100) {
+  gForceValue = 0;
+}
+shockSensorBackValue += 8;
+if (shockSensorBackValue > 256) {
+  shockSensorBackValue = 0;
+}
+shockSensorFrontValue += 8;
+if (shockSensorFrontValue > 256) {
+  shockSensorFrontValue = 0;
+} 
+
 }

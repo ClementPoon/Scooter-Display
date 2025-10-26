@@ -387,5 +387,5 @@
 // so changing it here has no effect
 
 // #define SUPPORT_TRANSACTIONS
-//#define USE_PSRAM
+#define USE_PSRAM
 //#define USE_HSPI_PORT
