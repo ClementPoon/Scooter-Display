@@ -4,6 +4,7 @@
 #include <math.h>
 #include <Scooter.h>
 
+
 // The remote service we wish to connect to.
 static NimBLEUUID serviceUUID("c32cdd1f-baf2-46bc-87a1-69ab9637bfe0");
 // The characteristic of the remote service we are interested in.
@@ -12,22 +13,26 @@ static NimBLEUUID charUUID("23680ff2-e66b-4a4e-a051-422d2665c443");
 //Define the two CS pins to toggle between the two screens
 //These can be any two GPIO pins
 #define screen_0_CS  10      
-#define screen_1_CS  8
+#define screen_1_CS  2
 //Rotation values, change as required
 //These are for a screen in portrait mode, swap if using landscape
 #define rotation_0 1
-#define rotation_1 3
+#define rotation_1 3 
+
 
 //Sensor Variables
 int shockSensorBackValue = 0;
 int shockSensorFrontValue = 0;
-int gForceValue = 100;
+
+int gForceValueX = 0;
+int gForceValueZ = 0;
+
 float tiltAngleValue = 0.0;
 int compassValue = 0; //From 0-360 degrees
 // Serial input buffering (used by onReceive callback)
 volatile bool serialLineReady = false;
 char serialBuf[32];
-volatile size_t serialIdx = 0;
+volatile size_t serialIdx = 0; 
 
 
 //Create TFT Colors
@@ -52,6 +57,7 @@ TFT_eSPI tft = TFT_eSPI();       // Invoke custom library
 
 //Sprites
 TFT_eSprite img = TFT_eSprite(&tft); // Create Sprite object "img" with pointer to "tft" object
+TFT_eSprite img2 = TFT_eSprite(&tft); // Create Sprite object "img2" with pointer to "tft" object
 
 //Scooter bitmap images
 
@@ -70,7 +76,6 @@ void toggleScreen(bool screen0, bool screen1) {
     digitalWrite (screen_1_CS, LOW);  // select screen 1
   }
 }
-
 // Update screen 0 content
 // Screen 0 has shock sensors (BACK/FRONT), G-FORCE display, Optimal tilt angle calc, Compass (GPS)
 /////////////////////////////////////////////////
@@ -83,9 +88,9 @@ void updateScreen0() {
   const int cx = 120;
   const int cy = 120;
   const int borderR = 90;
-  const int charR = 105;
-  const int markInnerR = 100;
-  const int markOuterR = 105;
+  const int charR = 107;
+  const int markInnerR = 105;
+  const int markOuterR = 110;
   const int needleBaseR = 81;
   const int needleTipR = 90;
 
@@ -122,7 +127,7 @@ void updateScreen0() {
   // Draw Bottom Boost Indicator
   img.fillRect(0, 120, 240, 120, TFT_BLACK); // Fill the bottom half with black (placeholder for boost indicator)
   //Draw an arc using the boost value (placeholder logic)
-  int boostAngle = map(gForceValue, 0, 100, 0, 80); // Map gForceValue (0-100) to angle (0-180)
+  int boostAngle = map(gForceValueZ, 0, 100, 0, 80); // Map gForceValue (0-100) to angle (0-180)
   for (int b = 0; b <= 10; b++) {
     for (int a = 0; a <= boostAngle; a++) {
       int x = (int)(cos(radians(90 - a)) * (borderR + 20 + b) + cx);
@@ -163,9 +168,9 @@ void updateScreen0() {
   // Draw a triangle on the scooter wheels and increase red color from green as shock sensors increase
   // Wheel positions are chosen relative to the scooter bitmap drawn at (80,70) with size 80x110.
   // Adjust leftWheelX/Y and rightWheelX/Y if your bitmap positions differ.
-  {
-    auto rgbTo565 = [](uint8_t r, uint8_t g, uint8_t b) -> uint16_t {
-      return (uint16_t)(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
+  
+    auto rgbTo565 = [](uint8_t rr, uint8_t gg, uint8_t bb) -> uint16_t {
+      return (uint16_t)(((rr & 0xF8) << 8) | ((gg & 0xFC) << 3) | (bb >> 3));
     };
 
     // Clamp raw analog values to expected range then map to 0..100
@@ -175,49 +180,31 @@ void updateScreen0() {
     int frontPct = map(frontVal, 0, 256, 0, 100);
 
     // Compute RGB color that interpolates from green (0) to red (100)
-    auto interpColor = [&](int pct)->uint16_t {
+    auto interpColor = [=](int pct)->uint16_t {
       pct = constrain(pct, 0, 100);
-      uint8_t r = map(pct, 0, 100, 0, 255);
-      uint8_t g = map(pct, 0, 100, 255, 0);
-      uint8_t b = 0;
-      return rgbTo565(r, g, b);
+      uint8_t rr = (uint8_t)map(pct, 0, 100, 0, 255);
+      uint8_t gg = (uint8_t)map(pct, 0, 100, 255, 0);
+      uint8_t bb = 0;
+      return rgbTo565(rr, gg, bb);
     };
 
     uint16_t backColor = interpColor(backPct);
     uint16_t frontColor = interpColor(frontPct);
 
-    // Triangle size scales with shock intensity (base 6..20)
-    auto triangleSize = [&](int pct)->int {
-      return 6 + (pct * 14) / 100;
-    };
-
-    // Wheels are vertically aligned (same X), different Y positions
-    int wheelX = 130;         // common X for both wheels (adjust if needed)
-    int backWheelY = 170;     // Y for back wheel (lower)
-    int frontWheelY = 120;    // Y for front wheel (higher)
-
-    // Back wheel triangle rotated 90 degrees (pointing right)
-    int sBack = triangleSize(backPct);
-    int halfWBack = sBack;            // half-height of the base (vertical half-size)
-    int depthBack = sBack;            // how far the triangle extends horizontally (to the right)
-    img.fillTriangle(
-      wheelX + depthBack, backWheelY,                 // apex (right)
-      wheelX, backWheelY - halfWBack,     // top-left
-      wheelX, backWheelY + halfWBack,     // bottom-left
-      backColor
-    );
-
-    // Front wheel triangle rotated 90 degrees (pointing right)
-    int sFront = triangleSize(frontPct);
-    int halfWFront = sFront;
-    int depthFront = sFront;
-    img.fillTriangle(
-      wheelX + depthFront, frontWheelY,               // apex (right)
-      wheelX, frontWheelY - halfWFront,  // top-left
-      wheelX, frontWheelY + halfWFront,  // bottom-left
-      frontColor
-    );
-  }
+    // Draw wheel color blocks using explicit loop variable names to avoid shadowing
+    for (int row = 1; row < 90; ++row) {
+      for (int col = 0; col < 15; ++col) {
+        // avoid division by zero when row is small
+        int denom = (row / 4 == 0) ? 1 : (row / 4);
+        if (rand() % 80 < backPct / denom) {
+          img.drawPixel(120 + row, 165 + col, backColor); // Left wheel (back)
+          img.drawPixel(120 + row, 120 + col, frontColor); // Right wheel (front)
+          img.drawPixel(120 - row, 165 + col, backColor); // Left wheel (back)
+          img.drawPixel(120 - row, 120  + col, frontColor); // Right
+        }
+      }
+    }
+  
 
 
   //Draw Scooter Bitmap in the center
@@ -230,6 +217,16 @@ void updateScreen0() {
   // Write individual pixels with randnum (1/0)
 
 
+}
+void updateScreen1() {
+  //Select screen 1
+  toggleScreen(false, true);   
+  //Clear screen
+  img2.fillRect(0, 0, 240, 240, TFT_BLACK); // Fill the sprite with black before drawing
+  img2.setTextColor(TFT_WHITE, TFT_BLACK);
+  img2.drawBitmap(60, 110, epd_bitmap_map__2_, 80, 110, TFT_WHITE); // Draw scooter bitmap at (60,110)
+  img2.drawCircle(120, 60, 50, TFT_WHITE); // Draw a circle at (120,60) with radius 50
+  img2.pushSprite(0, 0); // Push the sprite to the TFT at coordinates (0,0)
 }
 void drawLoadingScreen(int increment) {
   //Select screen 0
@@ -386,11 +383,24 @@ void setup() {
   if (!ok) {
     Serial.println("Sprite creation failed - try lower color depth or enable PSRAM.");
   }
+  img2.setColorDepth(8);                     // MUST set before creating sprite
+  Serial.print("Free heap before create: "); Serial.println(ESP.getFreeHeap());
+  #ifdef ESP32
+    Serial.print("PSRAM size: "); Serial.println(ESP.getPsramSize());
+    Serial.print("Free PSRAM: "); Serial.println(ESP.getFreePsram());
+  #endif
+  // Do not access internal/private members of the library (img._psram_enable).
+  // If PSRAM must be enabled, use the library's public API or configure PSRAM globally.
+  ok = img2.createSprite(240, 240);
+  Serial.print("createSprite(240,240) returned: "); Serial.println(ok);
+  Serial.print("Free heap after create: "); Serial.println(ESP.getFreeHeap());
+  if (!ok) {
+    Serial.println("Sprite creation failed - try lower color depth or enable PSRAM.");
+  }
   //Initialize BLE Serial
   //reconnectToServer(true);
   
    
- 
 }
 void loop() {
   // Update screen 0 (left Screen)
@@ -399,15 +409,12 @@ void loop() {
   // G-FORCE display
   // Optimal tilt angle calc
   // Compass (GPS)
-  updateScreen0();
+  //updateScreen0();
+  updateScreen1();
 
   compassValue += 1;
   if (compassValue >= 360) {
     compassValue = 0;
-}
-gForceValue += 5;
-if (gForceValue > 100) {
-  gForceValue = 0;
 }
 shockSensorBackValue += 8;
 if (shockSensorBackValue > 256) {
