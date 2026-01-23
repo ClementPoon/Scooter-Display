@@ -1,6 +1,6 @@
 #  Scooter Dual TFT Display
 
-This project drives a **dual-screen TFT dashboard** for an electric scooter using an **ESP32**, **TFT_eSPI**, and **NimBLE**. It visualizes ride data such as shock response, g‑force/boost, tilt, and compass heading, and supports BLE connectivity for live telemetry.
+This project drives a **dual-screen TFT display** for an electric scooter using an **ESP32**, **TFT_eSPI**, and **NimBLE**. It visualizes ride data such as shock response, g‑force/boost, tilt, and compass heading, and supports BLE connectivity for live telemetry.
 
 ---
 
@@ -10,7 +10,7 @@ This project drives a **dual-screen TFT dashboard** for an electric scooter usin
 *  **Animated compass** with heading rotation
 *  **Boost / G‑force arc gauge** with color zones
 *  **Shock sensor visualization** for front & back wheels
-*  **Scooter bitmap overlay**
+*  **Gps locator on bitmap of UT Austin**
 *  **Sprite-based rendering** for smooth animations
 *  **BLE client support (NimBLE)** for remote telemetry
 
@@ -22,4 +22,4 @@ This project drives a **dual-screen TFT dashboard** for an electric scooter usin
 * 2× 240×240 TFT Displays (SPI)
 * Shock sensors (front & rear)
 * IMU / accelerometer (for g‑force & tilt)
-* Optional GPS / compass module
+* Optional GPS module
